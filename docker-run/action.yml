@@ -1,0 +1,86 @@
+name: 'Docker run'
+description: 'Load docker image artifact and run command'
+author: 'lennarddevries'
+
+branding:
+  icon: 'package'
+  color: 'blue'
+
+inputs:
+  docker-artifact-name:
+    description: 'Name of the Docker image artifact to download'
+    required: false
+    default: 'docker-image'
+  
+  docker-image-tag:
+    description: 'Docker image tag to use'
+    required: true
+  
+  check-name:
+    description: 'Name of the check being performed'
+    required: true
+  
+  check-command:
+    description: 'Command to run inside the Docker container'
+    required: true
+  
+  working-directory:
+    description: 'Working directory for the Docker run command'
+    required: false
+    default: './'
+  
+  continue-on-error:
+    description: 'Whether to continue on error'
+    required: false
+    default: 'false'
+  
+  docker-run-args:
+    description: 'Additional arguments for docker run command'
+    required: false
+    default: ''
+  
+  volume-mount:
+    description: 'Volume mount for Docker (default: ${{ github.workspace }}:/app)'
+    required: false
+    default: '${{ github.workspace }}:/app'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Download Docker image artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: ${{ inputs.docker-artifact-name }}
+        path: /tmp/docker-image
+
+    - name: Load Docker image
+      shell: bash
+      env:
+        IMAGE_TAG: ${{ inputs.docker-image-tag }}
+      run: |
+        set -euo pipefail
+        ARCHIVE="/tmp/docker-image/image.tar"
+        if [ ! -f "$ARCHIVE" ]; then
+          echo "Expected Docker archive not found at $ARCHIVE" >&2
+          exit 1
+        fi
+        LOAD_OUTPUT=$(docker load --input "$ARCHIVE")
+        echo "$LOAD_OUTPUT"
+        if ! docker image inspect "$IMAGE_TAG" >/dev/null 2>&1; then
+          SOURCE_TAG=$(printf '%s\n' "$LOAD_OUTPUT" | sed -n 's/^Loaded image: //p' | head -n1)
+          if [ -n "$SOURCE_TAG" ]; then
+            docker tag "$SOURCE_TAG" "$IMAGE_TAG"
+          fi
+        fi
+
+    - name: Run ${{ inputs.check-name }}
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      continue-on-error: ${{ inputs.continue-on-error == 'true' }}
+      env:
+        IMAGE_TAG: ${{ inputs.docker-image-tag }}
+        CHECK_COMMAND: ${{ inputs.check-command }}
+        VOLUME_MOUNT: ${{ inputs.volume-mount }}
+        DOCKER_RUN_ARGS: ${{ inputs.docker-run-args }}
+      run: |
+        docker run --rm -v $VOLUME_MOUNT $DOCKER_RUN_ARGS "$IMAGE_TAG" $CHECK_COMMAND
