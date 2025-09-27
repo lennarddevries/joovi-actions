@@ -1,0 +1,84 @@
+name: 'Setup Poetry'
+description: 'Setup Python and Poetry with intelligent caching'
+author: 'lennarddevries'
+
+branding:
+  icon: 'package'
+  color: 'yellow'
+
+inputs:
+  python-version:
+    description: 'Python version'
+    required: false
+    default: '3.12'
+  poetry-version:
+    description: 'Poetry version'
+    required: false
+    default: '2.1.4'
+  install-args:
+    description: 'Additional poetry install arguments'
+    required: false
+    default: ''
+  working-directory:
+    description: 'Working directory'
+    required: false
+    default: '.'
+
+outputs:
+  python-version:
+    description: 'Installed Python version'
+    value: ${{ steps.setup-python.outputs.python-version }}
+  poetry-version:
+    description: 'Installed Poetry version'
+    value: ${{ inputs.poetry-version }}
+  cache-hit:
+    description: 'Cache hit'
+    value: ${{ steps.cache.outputs.cache-hit }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Python
+      id: setup-python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Cache Poetry installation
+      uses: actions/cache@v3
+      with:
+        path: ~/.local
+        key: poetry-${{ runner.os }}-${{ inputs.poetry-version }}
+
+    - name: Install Poetry
+      shell: bash
+      run: |
+        curl -sSL https://install.python-poetry.org | python3 - --version ${{ inputs.poetry-version }}
+        echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+    - name: Configure Poetry
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        poetry config virtualenvs.create true
+        poetry config virtualenvs.in-project true
+        poetry config installer.parallel true
+        poetry config installer.max-workers 10
+
+    - name: Cache dependencies
+      id: cache
+      uses: actions/cache@v3
+      with:
+        path: |
+          ${{ inputs.working-directory }}/.venv
+          ~/.cache/pypoetry
+        key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles(format('{0}/poetry.lock', inputs.working-directory)) }}
+        restore-keys: |
+          venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-
+
+    - name: Install dependencies
+      if: steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        poetry install ${{ inputs.install-args }}

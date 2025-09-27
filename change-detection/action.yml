@@ -1,6 +1,6 @@
 name: 'Change Detection'
 description: 'Detect what changed to optimize CI runs'
-author: 'your-org'
+author: 'lennarddevries'
 
 branding:
   icon: 'git-branch'
