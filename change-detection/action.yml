@@ -54,14 +54,6 @@ runs:
           echo "type=python-poetry" >> $GITHUB_OUTPUT
           echo "source_pattern=**/*.py" >> $GITHUB_OUTPUT
           echo "deps_pattern=poetry.lock,pyproject.toml" >> $GITHUB_OUTPUT
-        elif [ -f "astro.config.mjs" ]; then
-          echo "type=astro" >> $GITHUB_OUTPUT
-          echo "source_pattern=src/**/*" >> $GITHUB_OUTPUT
-          echo "deps_pattern=package*.json,*lock*" >> $GITHUB_OUTPUT
-        elif [ -f "package.json" ]; then
-          echo "type=node" >> $GITHUB_OUTPUT
-          echo "source_pattern=src/**/*,lib/**/*" >> $GITHUB_OUTPUT
-          echo "deps_pattern=package*.json,*lock*" >> $GITHUB_OUTPUT
         else
           echo "type=unknown" >> $GITHUB_OUTPUT
           echo "source_pattern=**/*" >> $GITHUB_OUTPUT
