@@ -13,8 +13,15 @@ on:
 jobs:
   release:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GH_TOKEN }}
+          fetch-depth: 0
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
@@ -23,11 +30,25 @@ jobs:
           tag_name: ${{ github.event.inputs.version || github.ref_name }}
         env:
           GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+          
       - name: Update major version tag
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
-          git config --global user.name "GitHub Actions"
-          git config --global user.email "actions@github.com"
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # Get the version
           VERSION=${{ github.event.inputs.version || github.ref_name }}
-          MAJOR=$(echo $VERSION | cut -d. -f1)
-          git tag -fa $MAJOR -m "Update $MAJOR tag to $VERSION"
-          git push origin $MAJOR --force
+          echo "Version: $VERSION"
+          
+          # Extract major version (remove 'v' prefix if present)
+          MAJOR=$(echo $VERSION | sed 's/^v//' | cut -d. -f1)
+          MAJOR_TAG="v$MAJOR"
+          echo "Major tag: $MAJOR_TAG"
+          
+          # Create/update the major version tag
+          git tag -fa $MAJOR_TAG -m "Update $MAJOR_TAG tag to $VERSION"
+          
+          # Push the tag
+          git push origin $MAJOR_TAG --force
