@@ -1,6 +1,6 @@
 name: 'Docker Build Universal'
 description: 'Build Docker images with intelligent caching for any project type'
-author: 'your-org'
+author: 'lennarddevries'
 
 branding:
   icon: 'package'
