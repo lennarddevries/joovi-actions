@@ -1,0 +1,99 @@
+name: 'Cache Key Generator'
+description: 'Generate intelligent cache keys based on project type'
+author: 'lennarddevries'
+
+branding:
+  icon: 'book'
+  color: 'green'
+
+inputs:
+  project-type:
+    description: 'Project type: python, node, astro, auto'
+    required: false
+    default: 'auto'
+  additional-files:
+    description: 'Additional files to include in hash'
+    required: false
+
+outputs:
+  docker-cache-key:
+    description: 'Docker cache key'
+    value: ${{ steps.generate.outputs.docker }}
+  deps-cache-key:
+    description: 'Dependencies cache key'
+    value: ${{ steps.generate.outputs.deps }}
+  project-type:
+    description: 'Detected project type'
+    value: ${{ steps.detect.outputs.type }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Detect project type
+      id: detect
+      shell: bash
+      run: |
+        TYPE="${{ inputs.project-type }}"
+        if [ "$TYPE" = "auto" ]; then
+          if [ -f "poetry.lock" ] || [ -f "pyproject.toml" ]; then
+            TYPE="python-poetry"
+          elif [ -f "requirements.txt" ]; then
+            TYPE="python-pip"
+          elif [ -f "astro.config.mjs" ]; then
+            TYPE="astro"
+          elif [ -f "package.json" ]; then
+            if [ -f "pnpm-lock.yaml" ]; then
+              TYPE="node-pnpm"
+            elif [ -f "yarn.lock" ]; then
+              TYPE="node-yarn"
+            else
+              TYPE="node-npm"
+            fi
+          else
+            TYPE="unknown"
+          fi
+        fi
+        echo "type=$TYPE" >> $GITHUB_OUTPUT
+
+    - name: Generate cache keys
+      id: generate
+      shell: bash
+      run: |
+        TYPE="${{ steps.detect.outputs.type }}"
+        OS="${{ runner.os }}"
+        
+        # Determine files to hash based on project type
+        case "$TYPE" in
+          python-poetry)
+            LOCK_FILES="poetry.lock pyproject.toml"
+            DOCKER_FILES="Dockerfile poetry.lock pyproject.toml"
+            ;;
+          python-pip)
+            LOCK_FILES="requirements*.txt"
+            DOCKER_FILES="Dockerfile requirements*.txt"
+            ;;
+          astro|node-*)
+            LOCK_FILES="package*.json *lock*"
+            DOCKER_FILES="Dockerfile package*.json *lock*"
+            ;;
+          *)
+            LOCK_FILES=""
+            DOCKER_FILES="Dockerfile"
+            ;;
+        esac
+        
+        # Add additional files if specified
+        if [ -n "${{ inputs.additional-files }}" ]; then
+          DOCKER_FILES="$DOCKER_FILES ${{ inputs.additional-files }}"
+        fi
+        
+        # Generate hashes
+        if [ -n "$LOCK_FILES" ]; then
+          DEPS_HASH=$(echo "$LOCK_FILES" | xargs ls 2>/dev/null | xargs cat 2>/dev/null | sha256sum | cut -d' ' -f1)
+          echo "deps=${OS}-${TYPE}-deps-${DEPS_HASH}" >> $GITHUB_OUTPUT
+        else
+          echo "deps=${OS}-${TYPE}-deps-none" >> $GITHUB_OUTPUT
+        fi
+        
+        DOCKER_HASH=$(echo "$DOCKER_FILES" | xargs ls 2>/dev/null | xargs cat 2>/dev/null | sha256sum | cut -d' ' -f1)
+        echo "docker=${OS}-${TYPE}-docker-${DOCKER_HASH}" >> $GITHUB_OUTPUT
