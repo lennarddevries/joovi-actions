@@ -82,7 +82,7 @@ runs:
             - '.dockerignore'
             - 'docker-compose*.yml'
           source:
-            - ${{ steps.detect.outputs.source_pattern }}
+            - '${{ steps.detect.outputs.source_pattern }}'
           tests:
             - 'tests/**'
             - 'test/**'
@@ -93,6 +93,6 @@ runs:
             - 'docs/**'
             - 'documentation/**'
           deps:
-            - ${{ steps.detect.outputs.deps_pattern }}
+            - '${{ steps.detect.outputs.deps_pattern }}'
           ci:
             - '.github/**'
