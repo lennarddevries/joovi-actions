@@ -1,0 +1,98 @@
+name: 'Change Detection'
+description: 'Detect what changed to optimize CI runs'
+author: 'your-org'
+
+branding:
+  icon: 'git-branch'
+  color: 'orange'
+
+inputs:
+  base-ref:
+    description: 'Base reference for comparison'
+    required: false
+    default: ${{ github.event.pull_request.base.sha || github.event.before }}
+  project-path:
+    description: 'Project path for submodule detection'
+    required: false
+    default: '.'
+
+outputs:
+  any-changed:
+    description: 'Any files changed'
+    value: ${{ steps.changes.outputs.any }}
+  docker-changed:
+    description: 'Docker files changed'
+    value: ${{ steps.changes.outputs.docker }}
+  source-changed:
+    description: 'Source code changed'
+    value: ${{ steps.changes.outputs.source }}
+  tests-changed:
+    description: 'Test files changed'
+    value: ${{ steps.changes.outputs.tests }}
+  docs-changed:
+    description: 'Documentation changed'
+    value: ${{ steps.changes.outputs.docs }}
+  deps-changed:
+    description: 'Dependencies changed'
+    value: ${{ steps.changes.outputs.deps }}
+  ci-changed:
+    description: 'CI config changed'
+    value: ${{ steps.changes.outputs.ci }}
+  project-type:
+    description: 'Detected project type'
+    value: ${{ steps.detect.outputs.type }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Detect project type
+      id: detect
+      shell: bash
+      working-directory: ${{ inputs.project-path }}
+      run: |
+        if [ -f "poetry.lock" ]; then
+          echo "type=python-poetry" >> $GITHUB_OUTPUT
+          echo "source_pattern=**/*.py" >> $GITHUB_OUTPUT
+          echo "deps_pattern=poetry.lock,pyproject.toml" >> $GITHUB_OUTPUT
+        elif [ -f "astro.config.mjs" ]; then
+          echo "type=astro" >> $GITHUB_OUTPUT
+          echo "source_pattern=src/**/*" >> $GITHUB_OUTPUT
+          echo "deps_pattern=package*.json,*lock*" >> $GITHUB_OUTPUT
+        elif [ -f "package.json" ]; then
+          echo "type=node" >> $GITHUB_OUTPUT
+          echo "source_pattern=src/**/*,lib/**/*" >> $GITHUB_OUTPUT
+          echo "deps_pattern=package*.json,*lock*" >> $GITHUB_OUTPUT
+        else
+          echo "type=unknown" >> $GITHUB_OUTPUT
+          echo "source_pattern=**/*" >> $GITHUB_OUTPUT
+          echo "deps_pattern=*" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Detect changes
+      id: changes
+      uses: dorny/paths-filter@v2
+      with:
+        base: ${{ inputs.base-ref }}
+        working-directory: ${{ inputs.project-path }}
+        filters: |
+          any:
+            - '**'
+          docker:
+            - 'Dockerfile*'
+            - '.dockerignore'
+            - 'docker-compose*.yml'
+          source:
+            - ${{ steps.detect.outputs.source_pattern }}
+          tests:
+            - 'tests/**'
+            - 'test/**'
+            - '**/*.test.*'
+            - '**/*.spec.*'
+          docs:
+            - '**/*.md'
+            - 'docs/**'
+            - 'documentation/**'
+          deps:
+            - ${{ steps.detect.outputs.deps_pattern }}
+          ci:
+            - '.github/**'
