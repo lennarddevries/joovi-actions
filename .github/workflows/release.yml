@@ -21,6 +21,8 @@ jobs:
         with:
           generate_release_notes: true
           tag_name: ${{ github.event.inputs.version || github.ref_name }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
 
       - name: Update major version tag
         run: |
