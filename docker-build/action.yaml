@@ -133,8 +133,7 @@ runs:
           type=registry,ref=${{ inputs.registry }}/${{ github.repository }}:buildcache
         cache-to: |
           type=local,dest=/tmp/.buildx-cache-new,mode=max
-        outputs: |
-          type=docker,dest=/tmp/image.tar
+        outputs: ${{ inputs.push == 'false' && 'type=docker,dest=/tmp/image.tar' || '' }}
 
     - name: Update cache
       shell: bash
