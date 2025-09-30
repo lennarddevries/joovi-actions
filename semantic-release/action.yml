@@ -1,0 +1,75 @@
+name: 'Semantic Release'
+description: 'Automated semantic versioning and release management'
+author: 'lennarddevries'
+
+branding:
+  icon: 'tag'
+  color: 'green'
+
+inputs:
+  github-token:
+    description: 'GitHub token for creating releases'
+    required: true
+  dry-run:
+    description: 'Run in dry-run mode (no actual release)'
+    required: false
+    default: 'false'
+  config-file:
+    description: 'Path to semantic-release config file'
+    required: false
+    default: ''
+
+outputs:
+  new-release-published:
+    description: 'Whether a new release was published'
+    value: ${{ steps.semantic.outputs.new_release_published }}
+  new-release-version:
+    description: 'Version of the new release'
+    value: ${{ steps.semantic.outputs.new_release_version }}
+  new-release-major-version:
+    description: 'Major version of the new release'
+    value: ${{ steps.semantic.outputs.new_release_major_version }}
+  new-release-minor-version:
+    description: 'Minor version of the new release'
+    value: ${{ steps.semantic.outputs.new_release_minor_version }}
+  new-release-patch-version:
+    description: 'Patch version of the new release'
+    value: ${{ steps.semantic.outputs.new_release_patch_version }}
+  new-release-git-tag:
+    description: 'Git tag of the new release'
+    value: ${{ steps.semantic.outputs.new_release_git_tag }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 'lts/*'
+
+    - name: Install semantic-release
+      shell: bash
+      run: |
+        if [ -f "package.json" ]; then
+          npm clean-install
+        else
+          npm install --no-save semantic-release @semantic-release/changelog @semantic-release/git
+        fi
+
+    - name: Run Semantic Release
+      id: semantic
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+      run: |
+        DRY_RUN=""
+        if [ "${{ inputs.dry-run }}" == "true" ]; then
+          DRY_RUN="--dry-run"
+        fi
+
+        CONFIG=""
+        if [ -n "${{ inputs.config-file }}" ]; then
+          CONFIG="--extends ${{ inputs.config-file }}"
+        fi
+
+        npx semantic-release $DRY_RUN $CONFIG
