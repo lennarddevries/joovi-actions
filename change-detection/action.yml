@@ -50,10 +50,18 @@ runs:
       shell: bash
       working-directory: ${{ inputs.project-path }}
       run: |
-        if [ -f "poetry.lock" ]; then
+        if [ -f "poetry.lock" ] || [ -f "pyproject.toml" ]; then
           echo "type=python-poetry" >> $GITHUB_OUTPUT
           echo "source_pattern=**/*.py" >> $GITHUB_OUTPUT
           echo "deps_pattern=poetry.lock,pyproject.toml" >> $GITHUB_OUTPUT
+        elif [ -f "astro.config.mjs" ] || [ -f "astro.config.js" ]; then
+          echo "type=astro" >> $GITHUB_OUTPUT
+          echo "source_pattern=src/**,*.config.*,public/**" >> $GITHUB_OUTPUT
+          echo "deps_pattern=package.json,package-lock.json,pnpm-lock.yaml,yarn.lock" >> $GITHUB_OUTPUT
+        elif [ -f "package.json" ]; then
+          echo "type=node" >> $GITHUB_OUTPUT
+          echo "source_pattern=src/**,lib/**,*.config.*" >> $GITHUB_OUTPUT
+          echo "deps_pattern=package.json,package-lock.json,pnpm-lock.yaml,yarn.lock" >> $GITHUB_OUTPUT
         else
           echo "type=unknown" >> $GITHUB_OUTPUT
           echo "source_pattern=**/*" >> $GITHUB_OUTPUT
