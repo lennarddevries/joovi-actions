@@ -37,6 +37,14 @@ inputs:
     description: 'Cache key prefix'
     required: false
     default: 'docker'
+  cache-key:
+    description: 'Override cache key (defaults to hash of lockfiles)'
+    required: false
+    default: ''
+  restore-cache-key:
+    description: 'Optional restore cache key to prefer before fallback prefix'
+    required: false
+    default: ''
   build-args:
     description: 'Build arguments (JSON format)'
     required: false
@@ -66,14 +74,24 @@ runs:
       id: cache
       shell: bash
       run: |
-        FILES="${{ inputs.dockerfile }}"
-        if [ -f "poetry.lock" ]; then FILES="$FILES poetry.lock pyproject.toml"; fi
-        if [ -f "package-lock.json" ]; then FILES="$FILES package-lock.json"; fi
-        if [ -f "pnpm-lock.yaml" ]; then FILES="$FILES pnpm-lock.yaml"; fi
-        if [ -f "yarn.lock" ]; then FILES="$FILES yarn.lock"; fi
-        
-        HASH=$(echo "$FILES" | xargs cat | sha256sum | cut -d' ' -f1)
-        echo "key=${{ inputs.cache-key-prefix }}-${{ runner.os }}-${HASH}" >> $GITHUB_OUTPUT
+        set -euo pipefail
+        KEY_INPUT="${{ inputs.cache-key }}"
+        if [ -z "$KEY_INPUT" ]; then
+          FILES="${{ inputs.dockerfile }}"
+          if [ -f "poetry.lock" ]; then FILES="$FILES poetry.lock pyproject.toml"; fi
+          if [ -f "package-lock.json" ]; then FILES="$FILES package-lock.json"; fi
+          if [ -f "pnpm-lock.yaml" ]; then FILES="$FILES pnpm-lock.yaml"; fi
+          if [ -f "yarn.lock" ]; then FILES="$FILES yarn.lock"; fi
+          HASH=$(echo "$FILES" | xargs cat | sha256sum | cut -d' ' -f1)
+          KEY_INPUT="${{ inputs.cache-key-prefix }}-${{ runner.os }}-${HASH}"
+        fi
+
+        RESTORE_INPUT="${{ inputs.restore-cache-key }}"
+        DEFAULT_RESTORE="${{ inputs.cache-key-prefix }}-${{ runner.os }}-"
+
+        echo "key=$KEY_INPUT" >> "$GITHUB_OUTPUT"
+        echo "restore-key=$RESTORE_INPUT" >> "$GITHUB_OUTPUT"
+        echo "fallback-restore-key=$DEFAULT_RESTORE" >> "$GITHUB_OUTPUT"
 
     - name: Docker meta
       id: meta
@@ -112,7 +130,8 @@ runs:
         path: /tmp/.buildx-cache
         key: ${{ steps.cache.outputs.key }}
         restore-keys: |
-          ${{ inputs.cache-key-prefix }}-${{ runner.os }}-
+          ${{ steps.cache.outputs.restore-key }}
+          ${{ steps.cache.outputs.fallback-restore-key }}
 
     - name: Build and push
       id: build
